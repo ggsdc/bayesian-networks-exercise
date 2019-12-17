@@ -38,7 +38,7 @@ t2 %>%
 net <- hc(data)
 graphviz.plot(net, layout="fdp", shape="rectangle")
 
-set.seed(9)
+set.seed(33)
 
 data.train <- data %>% 
     sample_frac(0.8)
@@ -76,15 +76,12 @@ graphviz.plot(net, layout="fdp", shape="rectangle")
 
 net.train <- bn.fit(net, data.train)
 
-
-
 ## Constraint based
-
+set.seed(9)
 xval.pc <- bn.cv(data.train, bn = "pc.stable",loss="pred-lw-cg", loss.args = list(target = "class"), method = "k-fold", k=8)
 xval.gs <- bn.cv(data.train %>% mutate_all(as.factor), bn = "gs",loss="pred", loss.args = list(target = "class"), method = "k-fold", k=8)
 xval.iamb <- bn.cv(data.train %>% mutate_all(as.factor), bn = "iamb",loss="pred", loss.args = list(target = "class"), method = "k-fold", k=8)
 xval.fiamb <- bn.cv(data.train %>% mutate_all(as.factor), bn = "fast.iamb",loss="pred", loss.args = list(target = "class"), method = "k-fold", k=8)
-
 
 xval.pc
 xval.gs
@@ -125,3 +122,56 @@ perf.iamb %>%
 perf.fiamb %>% 
     group_by(obs, pred) %>% 
     summarise(count=n())
+
+
+net2 <- pc.stable(data.train)
+graphviz.plot(net2, layout="fdp", shape="rectangle")
+
+
+### Inference
+
+net2 <- set.arc(net2, from="other_payment_plans", to="credit_history")
+net2 <- set.arc(net2, from="cc_age", to="residence_since")
+net2 <- set.arc(net2, from="property_magnitude", to="housing")
+net2 <- set.arc(net2, from="personal_status", to="housing")
+net2 <- set.arc(net2, from="job", to="employment")
+net2 <- set.arc(net2, from="job", to="own_telephone")
+net2 <- set.arc(net2, from="Average_Credit_Balance", to="over_draft")
+net2 <- set.arc(net2, from="over_draft", to="class")
+
+
+tabu.train <- bn.fit(hc(data.train), data.train)
+pc.train <- bn.fit(net2, data.train)
+
+cpquery(tabu.train, (class=="bad"), ((over_draft=="no checking")))
+table(cpdist(tabu.train, "class", (over_draft=="<0")))
+
+tabu.train
+data.test[1,1:20]
+
+
+var = names(data.test)
+obs = 1
+
+results.pc <- data.frame()
+
+for (i in 1:nrow(data.test)){
+    # str = paste("(", names(data.test)[-1], " == '",
+    #             sapply(data.test[i, -1], as.character), "')",
+    #             sep = "", collapse = " & ")
+    # 
+    # str2 = paste("(", names(data.test)[21], " == '",
+    #              as.character(data.test[i, 21]), "')", sep = "")
+    # 
+    # 
+    # cmd = paste("cpquery(pc.train, ", str2, ", ", str, ")", sep = "")
+    # print(eval(parse(text = cmd)))
+    pred <- predict(tabu.train, "class", data.test[i, 1:20])
+    aux <- data.frame(obs=data.test[i,21], pred=pred)
+    results.pc <- bind_rows(results.pc, aux)
+}
+
+results.pc %>% group_by(obs, pred) %>% summarise(count=n())
+
+
+
