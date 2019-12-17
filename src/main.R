@@ -1,7 +1,7 @@
 library(bnlearn)
 library(rio)
 library(dplyr)
-library(BiocManager)
+# library(BiocManager)
 library(Rgraphviz)
 library(ggplot2)
 library(tidyr)
@@ -38,7 +38,7 @@ t2 %>%
 net <- hc(data)
 graphviz.plot(net, layout="fdp", shape="rectangle")
 
-set.seed(666)
+set.seed(9)
 
 data.train <- data %>% 
     sample_frac(0.8)
@@ -75,3 +75,53 @@ net <- hc(data.train)
 graphviz.plot(net, layout="fdp", shape="rectangle")
 
 net.train <- bn.fit(net, data.train)
+
+
+
+## Constraint based
+
+xval.pc <- bn.cv(data.train, bn = "pc.stable",loss="pred-lw-cg", loss.args = list(target = "class"), method = "k-fold", k=8)
+xval.gs <- bn.cv(data.train %>% mutate_all(as.factor), bn = "gs",loss="pred", loss.args = list(target = "class"), method = "k-fold", k=8)
+xval.iamb <- bn.cv(data.train %>% mutate_all(as.factor), bn = "iamb",loss="pred", loss.args = list(target = "class"), method = "k-fold", k=8)
+xval.fiamb <- bn.cv(data.train %>% mutate_all(as.factor), bn = "fast.iamb",loss="pred", loss.args = list(target = "class"), method = "k-fold", k=8)
+
+
+xval.pc
+xval.gs
+xval.iamb
+xval.fiamb
+
+perf.pc <- data.frame()
+perf.gs <- data.frame()
+perf.iamb <- data.frame()
+perf.fiamb <- data.frame()
+
+for (i in 1:length(xval.pc)){
+    aux <- data.frame(obs = xval.pc[[i]]$observed, pred=xval.pc[[i]]$predicted)
+    perf.pc <- bind_rows(perf.pc, aux)
+    
+    aux <- data.frame(obs = xval.gs[[i]]$observed, pred=xval.gs[[i]]$predicted)
+    perf.gs <- bind_rows(perf.gs, aux)
+    
+    aux <- data.frame(obs = xval.iamb[[i]]$observed, pred=xval.iamb[[i]]$predicted)
+    perf.iamb <- bind_rows(perf.iamb, aux)
+    
+    aux <- data.frame(obs = xval.fiamb[[i]]$observed, pred=xval.fiamb[[i]]$predicted)
+    perf.fiamb <- bind_rows(perf.fiamb, aux)
+}
+
+perf.pc %>% 
+    group_by(obs, pred) %>% 
+    summarise(count=n())
+
+perf.gs %>% 
+    group_by(obs, pred) %>% 
+    summarise(count=n())
+
+perf.iamb %>% 
+    group_by(obs, pred) %>% 
+    summarise(count=n())
+
+perf.fiamb %>% 
+    group_by(obs, pred) %>% 
+    summarise(count=n())
